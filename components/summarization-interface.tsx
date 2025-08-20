@@ -4,6 +4,7 @@ import { useState, useCallback } from "react"
 import { useDropzone } from "react-dropzone"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
@@ -20,6 +21,7 @@ export function SummarizationInterface() {
   const [summaryResult, setSummaryResult] = useState<SummaryResult | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [saveTitle, setSaveTitle] = useState("")
   const { toast } = useToast()
 
   const onDrop = useCallback(
@@ -34,6 +36,9 @@ export function SummarizationInterface() {
         if (validTypes.includes(file.type)) {
           setUploadedFile(file)
           setTextInput("") // Clear text input when file is uploaded
+          // Auto-populate title with filename (without extension)
+          const fileName = file.name.replace(/\.[^/.]+$/, "")
+          setSaveTitle(fileName)
           toast({
             title: "File uploaded",
             description: `${file.name} is ready for summarization`,
@@ -156,30 +161,50 @@ export function SummarizationInterface() {
       return
     }
 
+    if (!saveTitle.trim()) {
+      toast({
+        title: "Title required",
+        description: "Please enter a title for your summary",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsSaving(true)
     try {
+      // Prepare data in the format expected by backend
+      const saveData = {
+        topic: saveTitle.trim(),
+        original_content: textInput || uploadedFile?.name || "File upload",
+        summary: summaryResult.summary,
+        resources: summaryResult.resources?.map(r => r.url) || []
+      }
+
       const response = await fetch("/api/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: textInput || uploadedFile?.name || "",
-          summary: summaryResult.summary,
-          links: summaryResult.resources || [],
-        }),
+        body: JSON.stringify(saveData),
       })
 
       if (!response.ok) {
-        throw new Error("Failed to save")
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to save")
       }
 
+      const result = await response.json()
+      
       toast({
         title: "Summary saved",
-        description: "Your summary has been saved to your library",
+        description: `Your summary "${saveTitle}" has been saved to your library`,
       })
+
+      // Clear the title after successful save
+      setSaveTitle("")
     } catch (error) {
+      console.error("Save error:", error)
       toast({
         title: "Error",
-        description: "Failed to save summary. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to save summary. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -263,11 +288,38 @@ export function SummarizationInterface() {
           {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <ExternalLink className="h-4 w-4 mr-2" />}
           Get Resources
         </Button>
-        <Button onClick={handleSave} disabled={isSaving || !summaryResult?.summary} variant="outline">
-          {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-          Save Summary
-        </Button>
       </div>
+
+      {/* Save Section - Only show if summary exists */}
+      {summaryResult?.summary && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Save className="h-5 w-5" />
+              Save Summary
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="saveTitle" className="block text-sm font-medium text-gray-700 mb-2">
+                  Title for your summary
+                </label>
+                <Input
+                  id="saveTitle"
+                  placeholder="Enter a title for your summary (e.g., 'Machine Learning Fundamentals')"
+                  value={saveTitle}
+                  onChange={(e) => setSaveTitle(e.target.value)}
+                />
+              </div>
+              <Button onClick={handleSave} disabled={isSaving || !saveTitle.trim()} className="w-full">
+                {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                Save to Library
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Summary Results */}
       {summaryResult && (

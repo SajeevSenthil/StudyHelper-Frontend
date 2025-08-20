@@ -11,12 +11,37 @@ import { Search, Calendar, Award, RotateCcw, Clock } from "lucide-react"
 import { Navbar } from "@/components/navbar"
 
 interface QuizResult {
-  id: string
-  title: string
+  user_quiz_id: number
+  quiz_id: number
+  topic: string
+  taken_date: string
+  total_marks: number
   score: number
-  totalQuestions: number
-  completedAt: string
   percentage: number
+  performance_report: string
+}
+
+interface QuizAttemptDetails {
+  user_quiz_id: number
+  quiz_id: number
+  topic: string
+  taken_date: string
+  total_marks: number
+  score: number
+  percentage: number
+  detailed_results: Array<{
+    question_number: number
+    question_id: number
+    question_text: string
+    option_a: string
+    option_b: string
+    option_c: string
+    option_d: string
+    correct_option: string
+    user_selected: string | null
+    is_correct: boolean
+    status: string
+  }>
 }
 
 export default function PastQuizzesPage() {
@@ -27,6 +52,8 @@ export default function PastQuizzesPage() {
   const [filteredResults, setFilteredResults] = useState<QuizResult[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [isLoadingQuizzes, setIsLoadingQuizzes] = useState(true)
+  const [selectedQuizDetails, setSelectedQuizDetails] = useState<QuizAttemptDetails | null>(null)
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false)
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -41,17 +68,19 @@ export default function PastQuizzesPage() {
   }, [user])
 
   useEffect(() => {
-    const filtered = quizResults.filter((quiz) => quiz.title.toLowerCase().includes(searchTerm.toLowerCase()))
+    const filtered = quizResults.filter((quiz) => quiz.topic.toLowerCase().includes(searchTerm.toLowerCase()))
     setFilteredResults(filtered)
   }, [searchTerm, quizResults])
 
   const fetchQuizResults = async () => {
     try {
-      const response = await fetch("/api/quiz-results")
+      const response = await fetch("/api/quiz-results?user_id=1") // Default user ID
       if (response.ok) {
-        const results = await response.json()
-        setQuizResults(results)
-        setFilteredResults(results)
+        const data = await response.json()
+        if (data.success && data.attempts) {
+          setQuizResults(data.attempts)
+          setFilteredResults(data.attempts)
+        }
       }
     } catch (error) {
       console.error("Failed to fetch quiz results:", error)
@@ -60,9 +89,26 @@ export default function PastQuizzesPage() {
     }
   }
 
-  const retakeQuiz = async (quizTitle: string) => {
+  const fetchQuizDetails = async (userQuizId: number) => {
+    setIsLoadingDetails(true)
+    try {
+      const response = await fetch(`/api/quiz-attempt/${userQuizId}`)
+      if (response.ok) {
+        const data = await response.json()
+        setSelectedQuizDetails(data)
+      } else {
+        console.error("Failed to fetch quiz details")
+      }
+    } catch (error) {
+      console.error("Failed to fetch quiz details:", error)
+    } finally {
+      setIsLoadingDetails(false)
+    }
+  }
+
+  const retakeQuiz = async (quizTopic: string) => {
     // Navigate to quiz page with the topic pre-filled
-    router.push(`/quizzes?topic=${encodeURIComponent(quizTitle)}`)
+    router.push(`/quizzes?topic=${encodeURIComponent(quizTopic)}`)
   }
 
   const formatDate = (dateString: string) => {
@@ -182,10 +228,10 @@ export default function PastQuizzesPage() {
                   ) : recentQuizzes.length > 0 ? (
                     <div className="space-y-3">
                       {recentQuizzes.map((quiz) => (
-                        <div key={quiz.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div key={quiz.user_quiz_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{quiz.title}</p>
-                            <p className="text-sm text-gray-500">{formatDate(quiz.completedAt)}</p>
+                            <p className="font-medium truncate">{quiz.topic}</p>
+                            <p className="text-sm text-gray-500">{formatDate(quiz.taken_date)}</p>
                           </div>
                           <Badge className={getScoreColor(quiz.percentage)}>{quiz.percentage}%</Badge>
                         </div>
@@ -212,29 +258,39 @@ export default function PastQuizzesPage() {
                   ) : filteredResults.length > 0 ? (
                     <div className="space-y-4">
                       {filteredResults.map((quiz) => (
-                        <div key={quiz.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                        <div key={quiz.user_quiz_id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
                           <div className="flex items-center justify-between mb-2">
-                            <h3 className="font-semibold text-lg">{quiz.title}</h3>
+                            <h3 className="font-semibold text-lg">{quiz.topic}</h3>
                             <Badge className={getScoreColor(quiz.percentage)}>
-                              {quiz.score}/{quiz.totalQuestions} ({quiz.percentage}%)
+                              {quiz.score}/{quiz.total_marks} ({quiz.percentage}%)
                             </Badge>
                           </div>
 
                           <div className="flex items-center justify-between text-sm text-gray-600">
                             <div className="flex items-center gap-2">
                               <Calendar className="h-4 w-4" />
-                              {formatDate(quiz.completedAt)}
+                              {formatDate(quiz.taken_date)}
                             </div>
 
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => retakeQuiz(quiz.title)}
-                              className="flex items-center gap-2"
-                            >
-                              <RotateCcw className="h-4 w-4" />
-                              Retake
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => fetchQuizDetails(quiz.user_quiz_id)}
+                                className="flex items-center gap-2"
+                              >
+                                View Details
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => retakeQuiz(quiz.topic)}
+                                className="flex items-center gap-2"
+                              >
+                                <RotateCcw className="h-4 w-4" />
+                                Retake
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -254,6 +310,75 @@ export default function PastQuizzesPage() {
           </div>
         </div>
       </div>
+
+      {/* Detailed Results Modal */}
+      {selectedQuizDetails && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className="text-2xl font-bold">{selectedQuizDetails.topic}</h2>
+                  <p className="text-gray-600">
+                    Score: {selectedQuizDetails.score}/{selectedQuizDetails.total_marks} ({selectedQuizDetails.percentage}%)
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => setSelectedQuizDetails(null)}
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+            
+            <div className="p-6">
+              <h3 className="text-lg font-semibold mb-4">Detailed Results</h3>
+              
+              {isLoadingDetails ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {selectedQuizDetails.detailed_results.map((result) => (
+                    <div key={result.question_id} className="border rounded-lg p-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <h4 className="font-medium text-gray-900 flex-1">
+                          {result.question_number}. {result.question_text}
+                        </h4>
+                        <div className={`px-2 py-1 rounded text-sm font-medium ${
+                          result.is_correct 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {result.status}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="text-sm">
+                          <span className="font-medium">Your answer: </span>
+                          <span className={result.is_correct ? 'text-green-700' : 'text-red-700'}>
+                            {result.user_selected || 'No answer selected'}
+                          </span>
+                        </div>
+
+                        {!result.is_correct && (
+                          <div className="text-sm">
+                            <span className="font-medium">Correct answer: </span>
+                            <span className="text-green-700">{result.correct_option}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

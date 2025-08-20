@@ -1,31 +1,31 @@
 import { type NextRequest, NextResponse } from "next/server"
 
+const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8001"
+
 export async function POST(request: NextRequest) {
   try {
-    const { text, summary, links } = await request.json()
+    const body = await request.json()
 
-    if (!summary) {
-      return NextResponse.json({ error: "No summary provided" }, { status: 400 })
-    }
-
-    // Save to database (for now, we'll simulate this since we haven't set up Supabase yet)
-    // In the next task, we'll replace this with actual Supabase integration
-    const savedSession = {
-      id: Date.now().toString(),
-      userId: "demo-user",
-      originalText: text || "File upload",
-      summary,
-      links: JSON.stringify(links || []),
-      createdAt: new Date(),
-    }
-
-    console.log("[v0] Simulating save to database:", savedSession)
-
-    return NextResponse.json({
-      success: true,
-      sessionId: savedSession.id,
-      message: "Summary saved successfully",
+    // Forward the request to the backend
+    const backendResponse = await fetch(`${BACKEND_URL}/save`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
     })
+
+    if (!backendResponse.ok) {
+      const errorData = await backendResponse.text()
+      console.error("Backend error:", errorData)
+      return NextResponse.json(
+        { error: "Failed to save summary" }, 
+        { status: backendResponse.status }
+      )
+    }
+
+    const result = await backendResponse.json()
+    return NextResponse.json(result)
   } catch (error) {
     console.error("Save error:", error)
     return NextResponse.json({ error: "Failed to save summary" }, { status: 500 })

@@ -62,7 +62,7 @@ export default function QuizTakingPage() {
 
   const [quiz, setQuiz] = useState<Quiz | null>(null)
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
-  const [selectedAnswers, setSelectedAnswers] = useState<string[]>([])
+  const [selectedAnswers, setSelectedAnswers] = useState<string[]>([]) // Changed to string array for option IDs
   const [showResults, setShowResults] = useState(false)
   const [quizResults, setQuizResults] = useState<QuizResult | null>(null)
   const [loading, setLoading] = useState(true)
@@ -129,52 +129,11 @@ export default function QuizTakingPage() {
   }
 
   const handleSubmitQuiz = async () => {
-    if (!quiz) return
-
-    setIsSaving(true)
-
-    const backendAnswers = selectedAnswers.map((selectedOption, index) => ({
-      question_id: quiz.questions[index].id,
-      selected_option: selectedOption || null
-    }))
-
-    try {
-      const response = await fetch("/api/save-quiz-result", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          quiz_id: parseInt(quiz.id),
-          user_id: 1,
-          answers: backendAnswers,
-          doc_id: 1
-        }),
-      })
-
-      if (response.ok) {
-        const result = await response.json()
-        setQuizResults(result)
-        setShowResults(true)
-        toast({
-          title: "Success",
-          description: "Quiz submitted successfully!",
-        })
-      } else {
-        throw new Error("Failed to submit quiz")
-      }
-    } catch (error) {
-      console.error("Failed to save quiz result:", error)
-      toast({
-        title: "Error",
-        description: "Failed to submit quiz. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsSaving(false)
-    }
+    setShowSaveDialog(true)
   }
 
-  const handleSaveQuiz = async () => {
-    if (!quizResults || !quizTitle.trim()) {
+  const handleSaveAndSubmitQuiz = async () => {
+    if (!quiz || !quizTitle.trim()) {
       toast({
         title: "Error",
         description: "Please enter a title for your quiz",
@@ -185,30 +144,43 @@ export default function QuizTakingPage() {
 
     setIsSaving(true)
 
+    // Convert answers to the format expected by backend
+    const backendAnswers = selectedAnswers.map((selectedOption, index) => ({
+      question_id: quiz.questions[index].id,
+      selected_option: selectedOption || null
+    }))
+
+    // Save quiz result to backend
     try {
-      const response = await fetch("/api/save-quiz-performance", {
+      const response = await fetch("/api/save-quiz-result", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_quiz_id: quizResults.user_quiz_id,
-          custom_title: quizTitle.trim()
+          quiz_id: parseInt(quiz.id),
+          user_id: 1, // Default user ID, should be from auth context
+          answers: backendAnswers,
+          doc_id: 1, // This should come from the quiz data
+          quiz_title: quizTitle.trim()
         }),
       })
 
       if (response.ok) {
+        const result = await response.json()
+        setQuizResults(result)
         setShowSaveDialog(false)
+        setShowResults(true)
         toast({
           title: "Success",
-          description: "Quiz saved successfully!",
+          description: "Quiz submitted and saved successfully!",
         })
       } else {
-        throw new Error("Failed to save quiz")
+        throw new Error("Failed to submit quiz")
       }
     } catch (error) {
-      console.error("Failed to save quiz:", error)
+      console.error("Failed to save quiz result:", error)
       toast({
         title: "Error",
-        description: "Failed to save quiz. Please try again.",
+        description: "Failed to submit quiz. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -250,133 +222,7 @@ export default function QuizTakingPage() {
       <Navbar />
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-3xl mx-auto flex items-center justify-center min-h-[600px]">
-          {showSaveDialog ? (
-            <Card className="w-full max-w-md">
-              <CardHeader>
-                <CardTitle>Save Quiz</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label htmlFor="quiz-title" className="block text-sm font-medium mb-2">
-                    Enter a title for this quiz:
-                  </label>
-                  <Input
-                    id="quiz-title"
-                    type="text"
-                    placeholder="e.g., Math Quiz - Chapter 1 - First Attempt"
-                    value={quizTitle}
-                    onChange={(e) => setQuizTitle(e.target.value)}
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowSaveDialog(false)}
-                    disabled={isSaving}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleSaveQuiz}
-                    disabled={isSaving || !quizTitle.trim()}
-                    className="flex-1"
-                  >
-                    {isSaving ? "Saving..." : "Save Quiz"}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ) : showResults && quizResults ? (
-            <Card className="w-full">
-              <CardHeader className="text-center">
-                <CardTitle className="text-2xl font-bold mb-2">Quiz Results</CardTitle>
-                <div className="text-4xl font-bold text-blue-600 mb-2">
-                  {Math.round((quizResults.score / quizResults.total_marks) * 100)}%
-                </div>
-                <p className="text-gray-600">
-                  You scored {quizResults.score} out of {quizResults.total_marks} questions correctly
-                </p>
-              </CardHeader>
-              
-              <CardContent>
-                <div className="mb-6 p-4 rounded-lg bg-blue-50 border border-blue-200">
-                  <h3 className="font-semibold text-lg mb-2">Performance</h3>
-                  <p className="text-gray-700">
-                    {Math.round((quizResults.score / quizResults.total_marks) * 100) >= 80 
-                      ? "Excellent work! You have a strong understanding of the material."
-                      : Math.round((quizResults.score / quizResults.total_marks) * 100) >= 60
-                      ? "Good job! There's room for improvement in some areas."
-                      : "Keep studying! Review the material and try again."}
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-lg mb-4">Detailed Results</h3>
-                  {quizResults.detailed_results.map((result, index) => (
-                    <div key={index} className="p-4 border rounded-lg">
-                      <div className="flex items-start justify-between mb-3">
-                        <h4 className="font-medium text-gray-900 flex-1">
-                          {index + 1}. {result.question_text}
-                        </h4>
-                        <div className={`px-2 py-1 rounded text-sm font-medium ${
-                          result.is_correct 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {result.is_correct ? 'Correct' : 'Incorrect'}
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="text-sm">
-                          <span className="font-medium">Your answer: </span>
-                          <span className={result.is_correct ? 'text-green-700' : 'text-red-700'}>
-                            {result.user_selected || 'No answer selected'}
-                          </span>
-                        </div>
-
-                        {!result.is_correct && (
-                          <div className="text-sm">
-                            <span className="font-medium">Correct answer: </span>
-                            <span className="text-green-700">{result.correct_option}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex gap-4 mt-6 pt-6 border-t">
-                  <Button
-                    onClick={() => setShowSaveDialog(true)}
-                    className="flex-1"
-                  >
-                    Save Quiz
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setShowResults(false)
-                      setQuizResults(null)
-                      setSelectedAnswers([])
-                      setCurrentQuestionIndex(0)
-                      setQuizTitle("")
-                    }}
-                    variant="outline"
-                    className="flex-1"
-                  >
-                    Retake Quiz
-                  </Button>
-                  <Button
-                    onClick={() => router.push('/past-quizzes')}
-                    variant="outline"
-                    className="flex-1"
-                  >
-                    View Past Quizzes
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
+          {!showResults && !showSaveDialog ? (
             <Card className="w-full">
               <CardHeader>
                 <div className="flex justify-between items-center">
@@ -390,7 +236,7 @@ export default function QuizTakingPage() {
                 <div>
                   <h3 className="text-lg font-semibold mb-4">{quiz.questions[currentQuestionIndex].question}</h3>
                   <div className="space-y-2">
-                    {quiz.questions[currentQuestionIndex].options.map((option) => (
+                    {quiz.questions[currentQuestionIndex].options.map((option, index) => (
                       <button
                         key={option.id}
                         onClick={() => handleAnswerSelect(option.id)}
@@ -423,6 +269,155 @@ export default function QuizTakingPage() {
                       <Button onClick={handleNextQuestion}>Next</Button>
                     )}
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : showSaveDialog ? (
+            <Card className="w-full max-w-md">
+              <CardHeader>
+                <CardTitle>Save Quiz</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label htmlFor="quiz-title" className="block text-sm font-medium mb-2">
+                    Enter a title for your quiz:
+                  </label>
+                  <Input
+                    id="quiz-title"
+                    type="text"
+                    placeholder="e.g., Math Quiz - Chapter 1"
+                    value={quizTitle}
+                    onChange={(e) => setQuizTitle(e.target.value)}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowSaveDialog(false)}
+                    disabled={isSaving}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSaveAndSubmitQuiz}
+                    disabled={isSaving || !quizTitle.trim()}
+                    className="flex-1"
+                  >
+                    {isSaving ? "Saving..." : "Save & Submit"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : quizResults ? (
+            <Card className="w-full">
+              <CardHeader className="text-center">
+                <CardTitle className="text-2xl font-bold mb-2">Quiz Results</CardTitle>
+                <div className="text-4xl font-bold text-blue-600 mb-2">
+                  {Math.round((quizResults.score / quizResults.total_marks) * 100)}%
+                </div>
+                <p className="text-gray-600">
+                  You scored {quizResults.score} out of {quizResults.total_marks} questions correctly
+                </p>
+              </CardHeader>
+              
+              <CardContent>
+                {/* Performance Feedback */}
+                <div className="mb-6 p-4 rounded-lg bg-blue-50 border border-blue-200">
+                  <h3 className="font-semibold text-lg mb-2">Performance</h3>
+                  <p className="text-gray-700">
+                    {Math.round((quizResults.score / quizResults.total_marks) * 100) >= 80 
+                      ? "Excellent work! You have a strong understanding of the material."
+                      : Math.round((quizResults.score / quizResults.total_marks) * 100) >= 60
+                      ? "Good job! There's room for improvement in some areas."
+                      : "Keep studying! Review the material and try again."}
+                  </p>
+                </div>
+
+                {/* Detailed Results */}
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-lg mb-4">Detailed Results</h3>
+                  {quizResults.detailed_results.map((result, index) => (
+                    <div key={index} className="p-4 border rounded-lg">
+                      <div className="flex items-start justify-between mb-3">
+                        <h4 className="font-medium text-gray-900 flex-1">
+                          {index + 1}. {result.question_text}
+                        </h4>
+                        <div className={`px-2 py-1 rounded text-sm font-medium ${
+                          result.is_correct 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {result.is_correct ? 'Correct' : 'Incorrect'}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        {/* Show user's answer */}
+                        <div className="text-sm">
+                          <span className="font-medium">Your answer: </span>
+                          <span className={result.is_correct ? 'text-green-700' : 'text-red-700'}>
+                            {result.user_selected || 'No answer selected'}
+                          </span>
+                        </div>
+
+                        {/* Show correct answer if user was wrong */}
+                        {!result.is_correct && (
+                          <div className="text-sm">
+                            <span className="font-medium">Correct answer: </span>
+                            <span className="text-green-700">{result.correct_option}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-4 mt-6 pt-6 border-t">
+                  <Button
+                    onClick={() => {
+                      setShowResults(false)
+                      setQuizResults(null)
+                      setSelectedAnswers([])
+                      setCurrentQuestionIndex(0)
+                      setQuizTitle("")
+                    }}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    Retake Quiz
+                  </Button>
+                  <Button
+                    onClick={() => router.push('/past-quizzes')}
+                    className="flex-1"
+                  >
+                    View Past Quizzes
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="w-full">
+              <CardHeader>
+                <CardTitle>Quiz Completed!</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="text-center">
+                  <div className="text-4xl font-bold text-green-600 mb-2">✓</div>
+                  <h3 className="text-xl font-semibold mb-2">Quiz Submitted Successfully</h3>
+                  <p className="text-gray-600 mb-4">
+                    Your answers have been recorded and your results are being processed.
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    You answered {selectedAnswers.filter(answer => answer !== "").length} out of {quiz.questions.length} questions.
+                  </p>
+                </div>
+
+                <div className="flex gap-4 justify-center">
+                  <Button onClick={() => router.push("/quizzes")} variant="outline">
+                    Take Another Quiz
+                  </Button>
+                  <Button onClick={() => router.push("/past-quizzes")}>View Past Quizzes</Button>
                 </div>
               </CardContent>
             </Card>

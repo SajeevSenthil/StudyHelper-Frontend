@@ -11,11 +11,15 @@ import { useToast } from "@/hooks/use-toast"
 import { Navbar } from "@/components/navbar"
 
 type SavedSummary = {
-  id: string
-  originalText: string
+  doc_id: number
+  topic: string
   summary: string
-  links: string[]
-  createdAt: string
+  keywords?: string | null
+  created_at: string
+  download_count: number
+  resources_count: number
+  original_length: number
+  summary_length: number
 }
 
 export default function SavedSummariesPage() {
@@ -23,7 +27,7 @@ export default function SavedSummariesPage() {
   const router = useRouter()
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
-  const [deleting, setDeleting] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<number | null>(null)
   const [recentlyUploaded, setRecentlyUploaded] = useState<SavedSummary[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [allSummaries, setAllSummaries] = useState<SavedSummary[]>([])
@@ -46,8 +50,9 @@ export default function SavedSummariesPage() {
     } else {
       const filtered = allSummaries.filter(
         (summary) =>
-          summary.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          summary.originalText.toLowerCase().includes(searchQuery.toLowerCase()),
+          summary.summary?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          summary.topic?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (summary.keywords && summary.keywords.toLowerCase().includes(searchQuery.toLowerCase())),
       )
       setFilteredSummaries(filtered)
     }
@@ -63,8 +68,8 @@ export default function SavedSummariesPage() {
         setAllSummaries(summariesData)
 
         const recent = summariesData
-          .sort((a: SavedSummary, b: SavedSummary) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-          .slice(0, 5)
+          .sort((a: SavedSummary, b: SavedSummary) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .slice(0, 10) // Show more recent uploads
         setRecentlyUploaded(recent)
       } else {
         toast({
@@ -85,24 +90,30 @@ export default function SavedSummariesPage() {
     }
   }
 
-  const deleteSummary = async (id: string) => {
-    setDeleting(id)
+  const deleteSummary = async (doc_id: number) => {
+    setDeleting(doc_id)
     try {
-      const response = await fetch(`/api/summaries/${id}`, {
+      const response = await fetch(`/api/summaries/${doc_id}`, {
         method: "DELETE",
       })
 
       if (response.ok) {
-        setRecentlyUploaded(recentlyUploaded.filter((summary) => summary.id !== id))
-        setAllSummaries(allSummaries.filter((summary) => summary.id !== id))
+        // Remove from both arrays
+        setRecentlyUploaded(recentlyUploaded.filter((summary) => summary.doc_id !== doc_id))
+        setAllSummaries(allSummaries.filter((summary) => summary.doc_id !== doc_id))
+        // Also update filtered summaries if searching
+        if (searchQuery.trim() !== "") {
+          setFilteredSummaries(filteredSummaries.filter((summary) => summary.doc_id !== doc_id))
+        }
         toast({
           title: "Success",
           description: "Summary deleted successfully",
         })
       } else {
+        const errorData = await response.json()
         toast({
           title: "Error",
-          description: "Failed to delete summary",
+          description: errorData.error || "Failed to delete summary",
           variant: "destructive",
         })
       }
@@ -119,16 +130,22 @@ export default function SavedSummariesPage() {
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    })
+    if (!dateString) return "Unknown date"
+    try {
+      return new Date(dateString).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    } catch (error) {
+      return "Invalid date"
+    }
   }
 
   const truncateText = (text: string, maxLength: number) => {
+    if (!text) return ""
     return text.length > maxLength ? text.substring(0, maxLength) + "..." : text
   }
 
@@ -151,7 +168,7 @@ export default function SavedSummariesPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Saved Summaries</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">StudyHelper</h1>
             <p className="text-gray-600">Search your summaries or view recent uploads</p>
           </div>
 
@@ -163,7 +180,7 @@ export default function SavedSummariesPage() {
                 placeholder="Search summaries by topic or content..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 pr-4 py-2 w-full border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                className="pl-10 pr-4 py-3 w-full border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-sm"
               />
             </div>
           </div>
@@ -182,17 +199,23 @@ export default function SavedSummariesPage() {
                 <div className="grid gap-4">
                   {filteredSummaries.map((summary) => (
                     <Card
-                      key={`search-${summary.id}`}
-                      className="hover:shadow-md transition-shadow border-l-4 border-l-green-500 cursor-pointer"
-                      onClick={() => setSearchQuery("")}
+                      key={`search-${summary.doc_id}`}
+                      className="hover:shadow-md transition-shadow border-l-4 border-l-green-500 cursor-pointer bg-white"
                     >
-                      <CardContent className="py-4">
+                      <CardContent className="py-4 px-6">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
-                            <p className="text-sm text-gray-700 mb-2">{truncateText(summary.summary, 150)}</p>
+                            <h3 className="text-sm font-semibold text-gray-900 mb-2 leading-tight">
+                              {summary.topic}
+                            </h3>
+                            <p className="text-sm text-gray-700 mb-3 leading-relaxed">
+                              {truncateText(summary.summary, 200)}
+                            </p>
                             <div className="flex items-center gap-2 text-xs text-gray-500">
                               <Calendar className="h-3 w-3" />
-                              <span>{formatDate(summary.createdAt)}</span>
+                              <span>{formatDate(summary.created_at)}</span>
+                              <span className="ml-4">Downloads: {summary.download_count}</span>
+                              <span className="ml-2">Resources: {summary.resources_count}</span>
                             </div>
                           </div>
                           <Button
@@ -200,12 +223,12 @@ export default function SavedSummariesPage() {
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation()
-                              deleteSummary(summary.id)
+                              deleteSummary(summary.doc_id)
                             }}
-                            disabled={deleting === summary.id}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            disabled={deleting === summary.doc_id}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50 ml-4 flex-shrink-0"
                           >
-                            {deleting === summary.id ? (
+                            {deleting === summary.doc_id ? (
                               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
                             ) : (
                               <Trash2 className="h-4 w-4" />
@@ -235,26 +258,33 @@ export default function SavedSummariesPage() {
               <div className="grid gap-4">
                 {recentlyUploaded.map((summary) => (
                   <Card
-                    key={`recent-${summary.id}`}
-                    className="hover:shadow-md transition-shadow border-l-4 border-l-blue-500"
+                    key={`recent-${summary.doc_id}`}
+                    className="hover:shadow-md transition-shadow border-l-4 border-l-blue-500 bg-white"
                   >
-                    <CardContent className="py-4">
+                    <CardContent className="py-4 px-6">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <p className="text-sm text-gray-700 mb-2">{truncateText(summary.summary, 150)}</p>
+                          <h3 className="text-sm font-semibold text-gray-900 mb-2 leading-tight">
+                            {summary.topic}
+                          </h3>
+                          <p className="text-sm text-gray-700 mb-3 leading-relaxed">
+                            {truncateText(summary.summary, 200)}
+                          </p>
                           <div className="flex items-center gap-2 text-xs text-gray-500">
                             <Calendar className="h-3 w-3" />
-                            <span>{formatDate(summary.createdAt)}</span>
+                            <span>{formatDate(summary.created_at)}</span>
+                            <span className="ml-4">Downloads: {summary.download_count}</span>
+                            <span className="ml-2">Resources: {summary.resources_count}</span>
                           </div>
                         </div>
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => deleteSummary(summary.id)}
-                          disabled={deleting === summary.id}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => deleteSummary(summary.doc_id)}
+                          disabled={deleting === summary.doc_id}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50 ml-4 flex-shrink-0"
                         >
-                          {deleting === summary.id ? (
+                          {deleting === summary.doc_id ? (
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
                           ) : (
                             <Trash2 className="h-4 w-4" />

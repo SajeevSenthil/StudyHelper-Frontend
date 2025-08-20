@@ -5,9 +5,9 @@ const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8001"
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-
-    // Forward the request to the backend
-    const backendResponse = await fetch(`${BACKEND_URL}/resources`, {
+    
+    // Forward the request to the backend save quiz endpoint
+    const backendResponse = await fetch(`${BACKEND_URL}/quiz/save`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       const errorData = await backendResponse.text()
       console.error("Backend error:", errorData)
       return NextResponse.json(
-        { error: "Failed to get resources" }, 
+        { error: "Failed to save quiz" }, 
         { status: backendResponse.status }
       )
     }
@@ -27,9 +27,7 @@ export async function POST(request: NextRequest) {
     const result = await backendResponse.json()
     return NextResponse.json(result)
   } catch (error) {
-    console.error("Resources error:", error)
-    return NextResponse.json({ error: "Failed to get resources" }, { status: 500 })
+    console.error("Save quiz error:", error)
+    return NextResponse.json({ error: "Failed to save quiz" }, { status: 500 })
   }
 }
-
-

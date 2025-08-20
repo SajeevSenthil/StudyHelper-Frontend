@@ -129,7 +129,18 @@ export default function QuizTakingPage() {
   }
 
   const handleSubmitQuiz = async () => {
-    if (!quiz) return
+    setShowSaveDialog(true)
+  }
+
+  const handleSaveAndSubmitQuiz = async () => {
+    if (!quiz || !quizTitle.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a title for your quiz",
+        variant: "destructive",
+      })
+      return
+    }
 
     setIsSaving(true)
 
@@ -146,17 +157,19 @@ export default function QuizTakingPage() {
           quiz_id: parseInt(quiz.id),
           user_id: 1,
           answers: backendAnswers,
-          doc_id: 1
+          doc_id: 1,
+          quiz_title: quizTitle.trim()
         }),
       })
 
       if (response.ok) {
         const result = await response.json()
         setQuizResults(result)
+        setShowSaveDialog(false)
         setShowResults(true)
         toast({
           title: "Success",
-          description: "Quiz submitted successfully!",
+          description: "Quiz submitted and saved successfully!",
         })
       } else {
         throw new Error("Failed to submit quiz")
@@ -166,49 +179,6 @@ export default function QuizTakingPage() {
       toast({
         title: "Error",
         description: "Failed to submit quiz. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  const handleSaveQuiz = async () => {
-    if (!quizResults || !quizTitle.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter a title for your quiz",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setIsSaving(true)
-
-    try {
-      const response = await fetch("/api/save-quiz-performance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_quiz_id: quizResults.user_quiz_id,
-          custom_title: quizTitle.trim()
-        }),
-      })
-
-      if (response.ok) {
-        setShowSaveDialog(false)
-        toast({
-          title: "Success",
-          description: "Quiz saved successfully!",
-        })
-      } else {
-        throw new Error("Failed to save quiz")
-      }
-    } catch (error) {
-      console.error("Failed to save quiz:", error)
-      toast({
-        title: "Error",
-        description: "Failed to save quiz. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -258,12 +228,12 @@ export default function QuizTakingPage() {
               <CardContent className="space-y-4">
                 <div>
                   <label htmlFor="quiz-title" className="block text-sm font-medium mb-2">
-                    Enter a title for this quiz:
+                    Enter a title for your quiz:
                   </label>
                   <Input
                     id="quiz-title"
                     type="text"
-                    placeholder="e.g., Math Quiz - Chapter 1 - First Attempt"
+                    placeholder="e.g., Math Quiz - Chapter 1"
                     value={quizTitle}
                     onChange={(e) => setQuizTitle(e.target.value)}
                   />
@@ -277,11 +247,11 @@ export default function QuizTakingPage() {
                     Cancel
                   </Button>
                   <Button
-                    onClick={handleSaveQuiz}
+                    onClick={handleSaveAndSubmitQuiz}
                     disabled={isSaving || !quizTitle.trim()}
                     className="flex-1"
                   >
-                    {isSaving ? "Saving..." : "Save Quiz"}
+                    {isSaving ? "Saving..." : "Save & Submit"}
                   </Button>
                 </div>
               </CardContent>
@@ -348,12 +318,6 @@ export default function QuizTakingPage() {
 
                 <div className="flex gap-4 mt-6 pt-6 border-t">
                   <Button
-                    onClick={() => setShowSaveDialog(true)}
-                    className="flex-1"
-                  >
-                    Save Quiz
-                  </Button>
-                  <Button
                     onClick={() => {
                       setShowResults(false)
                       setQuizResults(null)
@@ -368,7 +332,6 @@ export default function QuizTakingPage() {
                   </Button>
                   <Button
                     onClick={() => router.push('/past-quizzes')}
-                    variant="outline"
                     className="flex-1"
                   >
                     View Past Quizzes
