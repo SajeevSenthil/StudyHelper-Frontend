@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Trash2, Calendar, FileText, Search } from "lucide-react"
+import { Trash2, Calendar, FileText, Search, Download } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Navbar } from "@/components/navbar"
 
@@ -14,12 +14,15 @@ type SavedSummary = {
   doc_id: number
   topic: string
   summary: string
+  summary_filename?: string
+  summary_file_url?: string
   keywords?: string | null
   created_at: string
   download_count: number
   resources_count: number
   original_length: number
   summary_length: number
+  resources: string[]
 }
 
 export default function SavedSummariesPage() {
@@ -32,6 +35,7 @@ export default function SavedSummariesPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [allSummaries, setAllSummaries] = useState<SavedSummary[]>([])
   const [filteredSummaries, setFilteredSummaries] = useState<SavedSummary[]>([])
+  const [downloading, setDownloading] = useState<number | null>(null)
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -60,17 +64,19 @@ export default function SavedSummariesPage() {
 
   const fetchSummaries = async () => {
     try {
-      const response = await fetch("/api/summaries")
+      const response = await fetch("/api/summaries?user_id=1") // Default user ID
       if (response.ok) {
         const data = await response.json()
-        const summariesData = data.summaries || []
+        if (data.success && data.summaries) {
+          const summariesData = data.summaries
 
-        setAllSummaries(summariesData)
+          setAllSummaries(summariesData)
 
-        const recent = summariesData
-          .sort((a: SavedSummary, b: SavedSummary) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-          .slice(0, 10) // Show more recent uploads
-        setRecentlyUploaded(recent)
+          const recent = summariesData
+            .sort((a: SavedSummary, b: SavedSummary) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            .slice(0, 10) // Show more recent uploads
+          setRecentlyUploaded(recent)
+        }
       } else {
         toast({
           title: "Error",
@@ -87,6 +93,55 @@ export default function SavedSummariesPage() {
       })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const downloadSummary = async (summary: SavedSummary) => {
+    if (!summary.summary_filename) {
+      toast({
+        title: "Error",
+        description: "No downloadable file available for this summary",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setDownloading(summary.doc_id)
+    try {
+      const response = await fetch(`/api/summary-file/${summary.summary_filename}`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success && data.content) {
+          // Create a downloadable blob
+          const blob = new Blob([data.content], { type: 'text/plain' })
+          const url = window.URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = `${summary.topic}.txt`
+          document.body.appendChild(a)
+          a.click()
+          window.URL.revokeObjectURL(url)
+          document.body.removeChild(a)
+          
+          toast({
+            title: "Success",
+            description: "Summary downloaded successfully",
+          })
+        } else {
+          throw new Error("Invalid response format")
+        }
+      } else {
+        throw new Error("Failed to download file")
+      }
+    } catch (error) {
+      console.error("Download error:", error)
+      toast({
+        title: "Error",
+        description: "Failed to download summary file",
+        variant: "destructive",
+      })
+    } finally {
+      setDownloading(null)
     }
   }
 
@@ -215,25 +270,45 @@ export default function SavedSummariesPage() {
                               <Calendar className="h-3 w-3" />
                               <span>{formatDate(summary.created_at)}</span>
                               <span className="ml-4">Downloads: {summary.download_count}</span>
-                              <span className="ml-2">Resources: {summary.resources_count}</span>
+                              <span className="ml-2">Resources: {summary.resources?.length || 0}</span>
                             </div>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              deleteSummary(summary.doc_id)
-                            }}
-                            disabled={deleting === summary.doc_id}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50 ml-4 flex-shrink-0"
-                          >
-                            {deleting === summary.doc_id ? (
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
-                            ) : (
-                              <Trash2 className="h-4 w-4" />
+                          <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                            {summary.summary_filename && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  downloadSummary(summary)
+                                }}
+                                disabled={downloading === summary.doc_id}
+                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              >
+                                {downloading === summary.doc_id ? (
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                                ) : (
+                                  <Download className="h-4 w-4" />
+                                )}
+                              </Button>
                             )}
-                          </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                deleteSummary(summary.doc_id)
+                              }}
+                              disabled={deleting === summary.doc_id}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              {deleting === summary.doc_id ? (
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
@@ -274,22 +349,42 @@ export default function SavedSummariesPage() {
                             <Calendar className="h-3 w-3" />
                             <span>{formatDate(summary.created_at)}</span>
                             <span className="ml-4">Downloads: {summary.download_count}</span>
-                            <span className="ml-2">Resources: {summary.resources_count}</span>
+                            <span className="ml-2">Resources: {summary.resources?.length || 0}</span>
                           </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => deleteSummary(summary.doc_id)}
-                          disabled={deleting === summary.doc_id}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50 ml-4 flex-shrink-0"
-                        >
-                          {deleting === summary.doc_id ? (
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
-                          ) : (
-                            <Trash2 className="h-4 w-4" />
+                        <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                          {summary.summary_filename && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                downloadSummary(summary)
+                              }}
+                              disabled={downloading === summary.doc_id}
+                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            >
+                              {downloading === summary.doc_id ? (
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                              ) : (
+                                <Download className="h-4 w-4" />
+                              )}
+                            </Button>
                           )}
-                        </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => deleteSummary(summary.doc_id)}
+                            disabled={deleting === summary.doc_id}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            {deleting === summary.doc_id ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
