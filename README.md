@@ -1,30 +1,94 @@
-# New chat
+# StudyHelper-Frontend
 
-*Automatically synced with your [v0.app](https://v0.app) deployments*
+A Next.js 15 frontend application for the StudyHelper platform that provides AI-powered document summarization and quiz generation.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/connectprakashsap-2805s-projects/v0-new-chat)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.app-black?style=for-the-badge)](https://v0.app/chat/projects/bk7EzWuuEjg)
+## Features
 
-## Overview
+- **Document Summarization**: Upload and summarize documents using AI
+- **Quiz Generation**: Generate quizzes from documents or topics
+- **Interactive Quiz Taking**: Take quizzes with detailed results and scoring
+- **Quiz Management**: Save quizzes with custom titles and view past results
+- **Detailed Analytics**: View comprehensive quiz results with question-by-question breakdown
+- **User Authentication**: Secure user login and session management
 
-This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
+## Tech Stack
 
-## Deployment
+- **Framework**: Next.js 15.2.4
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **UI Components**: Custom component library
+- **Database**: Supabase (PostgreSQL)
+- **Authentication**: Supabase Auth
 
-Your project is live at:
+## Getting Started
 
-**[https://vercel.com/connectprakashsap-2805s-projects/v0-new-chat](https://vercel.com/connectprakashsap-2805s-projects/v0-new-chat)**
+### Prerequisites
 
-## Build your app
+- Node.js 18+ 
+- npm or yarn
+- Supabase account and project
 
-Continue building your app on:
+### Installation
 
-**[https://v0.app/chat/projects/bk7EzWuuEjg](https://v0.app/chat/projects/bk7EzWuuEjg)**
+1. Clone the repository:
+```bash
+git clone https://github.com/SajeevSenthil/StudyHelper-Frontend.git
+cd StudyHelper-Frontend
+```
 
-## How It Works
+2. Install dependencies:
+```bash
+npm install
+```
 
-1. Create and modify your project using [v0.app](https://v0.app)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+3. Set up environment variables:
+```bash
+cp .env.example .env.local
+```
+
+4. Configure your environment variables in `.env.local`:
+```
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+BACKEND_URL=http://localhost:8001
+```
+
+5. Run the development server:
+```bash
+npm run dev
+```
+
+6. Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+## Project Structure
+
+```
+├── app/                  # Next.js 13+ app directory
+│   ├── api/             # API routes
+│   ├── quiz/            # Quiz-related pages
+│   ├── past-quizzes/    # Quiz history
+│   └── ...              # Other pages
+├── components/          # Reusable components
+├── lib/                 # Utility functions and configurations
+└── public/              # Static assets
+```
+
+## API Integration
+
+The frontend integrates with the StudyHelper backend API for:
+- Document summarization
+- Quiz generation and management
+- User quiz attempts and scoring
+- Results analytics
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License.
