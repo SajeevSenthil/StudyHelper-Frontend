@@ -4,10 +4,10 @@ const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8001"
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const quizId = params.id
+    const { id: quizId } = await params
 
     const backendResponse = await fetch(`${BACKEND_URL}/quiz/${quizId}`, {
       method: "GET",
